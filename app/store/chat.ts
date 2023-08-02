@@ -95,11 +95,7 @@ interface ChatStore {
   summarizeSession: () => void;
   updateStat: (message: ChatMessage) => void;
   updateCurrentSession: (updater: (session: ChatSession) => void) => void;
-  updateMessage: (
-    sessionIndex: number,
-    messageIndex: number,
-    updater: (message?: ChatMessage) => void,
-  ) => void;
+  updateMessage: (sessionIndex: number, messageIndex: number, updater: (message?: ChatMessage) => void) => void;
   resetSession: () => void;
   getMessagesWithMemory: () => ChatMessage[];
   getMemoryPrompt: () => ChatMessage;
@@ -183,10 +179,7 @@ export const useChatStore = create<ChatStore>()(
         sessions.splice(index, 1);
 
         const currentIndex = get().currentSessionIndex;
-        let nextIndex = Math.min(
-          currentIndex - Number(index < currentIndex),
-          sessions.length - 1,
-        );
+        let nextIndex = Math.min(currentIndex - Number(index < currentIndex), sessions.length - 1);
 
         if (deletingLastSession) {
           nextIndex = 0;
@@ -212,7 +205,7 @@ export const useChatStore = create<ChatStore>()(
               set(() => restoreState);
             },
           },
-          5000,
+          5000
         );
       },
 
@@ -247,6 +240,7 @@ export const useChatStore = create<ChatStore>()(
           role: "user",
           content,
         });
+        console.log("userMessage", userMessage);
 
         const botMessage: ChatMessage = createMessage({
           role: "assistant",
@@ -254,7 +248,7 @@ export const useChatStore = create<ChatStore>()(
           id: userMessage.id! + 1,
           model: modelConfig.model,
         });
-
+        console.log("botMessage", botMessage);
         const systemInfo = createMessage({
           role: "system",
           content: `IMPORTANT: You are a virtual assistant powered by the ${
@@ -262,7 +256,7 @@ export const useChatStore = create<ChatStore>()(
           } model, now time is ${new Date().toLocaleString()}}`,
           id: botMessage.id! + 1,
         });
-
+        console.log("systemInfo", systemInfo);
         // get recent messages
         const systemMessages = [];
         // if user define a mask with context prompts, wont send system info
@@ -271,9 +265,7 @@ export const useChatStore = create<ChatStore>()(
         }
 
         const recentMessages = get().getMessagesWithMemory();
-        const sendMessages = systemMessages.concat(
-          recentMessages.concat(userMessage),
-        );
+        const sendMessages = systemMessages.concat(recentMessages.concat(userMessage));
         const sessionIndex = get().currentSessionIndex;
         const messageIndex = get().currentSession().messages.length + 1;
 
@@ -302,10 +294,7 @@ export const useChatStore = create<ChatStore>()(
                 botMessage.content = message;
                 get().onNewMessage(botMessage);
               }
-              ChatControllerPool.remove(
-                sessionIndex,
-                botMessage.id ?? messageIndex,
-              );
+              ChatControllerPool.remove(sessionIndex, botMessage.id ?? messageIndex);
             },
             onError(error) {
               const isAborted = error.message.includes("aborted");
@@ -321,20 +310,13 @@ export const useChatStore = create<ChatStore>()(
               get().updateCurrentSession((session) => {
                 session.messages = session.messages.concat();
               });
-              ChatControllerPool.remove(
-                sessionIndex,
-                botMessage.id ?? messageIndex,
-              );
+              ChatControllerPool.remove(sessionIndex, botMessage.id ?? messageIndex);
 
               console.error("[Chat] failed ", error);
             },
             onController(controller) {
               // collect controller for stop/retry
-              ChatControllerPool.addController(
-                sessionIndex,
-                botMessage.id ?? messageIndex,
-                controller,
-              );
+              ChatControllerPool.addController(sessionIndex, botMessage.id ?? messageIndex, controller);
             },
           });
         };
@@ -345,9 +327,7 @@ export const useChatStore = create<ChatStore>()(
         const urlParams = new URLSearchParams(window.location.search);
         let ic = urlParams.get("ic");
         let question: any = content;
-        let pdfHistory: any = JSON.parse(
-          localStorage.getItem("pdfHistory") || "[]",
-        );
+        let pdfHistory: any = JSON.parse(localStorage.getItem("pdfHistory") || "[]");
         if (pdfHistory.length > 7) {
           pdfHistory = pdfHistory.slice(-7);
         }
@@ -369,14 +349,12 @@ export const useChatStore = create<ChatStore>()(
               }),
             });
             const data = await response.json();
+            console.log("/api/chat", data);
             if (data.error) {
               botMessage.streaming = false;
               botMessage.content = data.error;
               get().onNewMessage(botMessage);
-              ChatControllerPool.remove(
-                sessionIndex,
-                botMessage.id ?? messageIndex,
-              );
+              ChatControllerPool.remove(sessionIndex, botMessage.id ?? messageIndex);
               pdfHistory.push([question, data.error]);
               localStorage.setItem("pdfHistory", JSON.stringify(pdfHistory));
             } else {
@@ -384,10 +362,7 @@ export const useChatStore = create<ChatStore>()(
               botMessage.streaming = false;
               botMessage.content = data.text;
               get().onNewMessage(botMessage);
-              ChatControllerPool.remove(
-                sessionIndex,
-                botMessage.id ?? messageIndex,
-              );
+              ChatControllerPool.remove(sessionIndex, botMessage.id ?? messageIndex);
               pdfHistory.push([question, data.text]);
               if (pdfHistory.length > 7) {
                 pdfHistory = pdfHistory.slice(-7);
@@ -395,7 +370,7 @@ export const useChatStore = create<ChatStore>()(
               localStorage.setItem("pdfHistory", JSON.stringify(pdfHistory));
             }
             console.log("messageState");
-          }, 0);
+          }, 50);
 
           //scroll to bottom
         } catch (error) {
@@ -408,10 +383,7 @@ export const useChatStore = create<ChatStore>()(
 
         return {
           role: "system",
-          content:
-            session.memoryPrompt.length > 0
-              ? Locale.Store.Prompt.History(session.memoryPrompt)
-              : "",
+          content: session.memoryPrompt.length > 0 ? Locale.Store.Prompt.History(session.memoryPrompt) : "",
           date: "",
         } as ChatMessage;
       },
@@ -421,45 +393,29 @@ export const useChatStore = create<ChatStore>()(
         const modelConfig = session.mask.modelConfig;
 
         // wont send cleared context messages
-        const clearedContextMessages = session.messages.slice(
-          session.clearContextIndex ?? 0,
-        );
+        const clearedContextMessages = session.messages.slice(session.clearContextIndex ?? 0);
         const messages = clearedContextMessages.filter((msg) => !msg.isError);
         const n = messages.length;
 
         const context = session.mask.context.slice();
 
         // long term memory
-        if (
-          modelConfig.sendMemory &&
-          session.memoryPrompt &&
-          session.memoryPrompt.length > 0
-        ) {
+        if (modelConfig.sendMemory && session.memoryPrompt && session.memoryPrompt.length > 0) {
           const memoryPrompt = get().getMemoryPrompt();
           context.push(memoryPrompt);
         }
 
         // get short term and unmemorized long term memory
-        const shortTermMemoryMessageIndex = Math.max(
-          0,
-          n - modelConfig.historyMessageCount,
-        );
+        const shortTermMemoryMessageIndex = Math.max(0, n - modelConfig.historyMessageCount);
         const longTermMemoryMessageIndex = session.lastSummarizeIndex;
 
         // try to concat history messages
-        const memoryStartIndex = Math.min(
-          shortTermMemoryMessageIndex,
-          longTermMemoryMessageIndex,
-        );
+        const memoryStartIndex = Math.min(shortTermMemoryMessageIndex, longTermMemoryMessageIndex);
         const threshold = modelConfig.max_tokens;
 
         // get recent messages as many as possible
         const reversedRecentMessages = [];
-        for (
-          let i = n - 1, count = 0;
-          i >= memoryStartIndex && count < threshold;
-          i -= 1
-        ) {
+        for (let i = n - 1, count = 0; i >= memoryStartIndex && count < threshold; i -= 1) {
           const msg = messages[i];
           if (!msg || msg.isError) continue;
           count += estimateTokenLength(msg.content);
@@ -472,11 +428,7 @@ export const useChatStore = create<ChatStore>()(
         return recentMessages;
       },
 
-      updateMessage(
-        sessionIndex: number,
-        messageIndex: number,
-        updater: (message?: ChatMessage) => void,
-      ) {
+      updateMessage(sessionIndex: number, messageIndex: number, updater: (message?: ChatMessage) => void) {
         const sessions = get().sessions;
         const session = sessions.at(sessionIndex);
         const messages = session?.messages;
@@ -499,15 +451,12 @@ export const useChatStore = create<ChatStore>()(
 
         // should summarize topic after chating more than 50 words
         const SUMMARIZE_MIN_LEN = 50;
-        if (
-          session.topic === DEFAULT_TOPIC &&
-          countMessages(messages) >= SUMMARIZE_MIN_LEN
-        ) {
+        if (session.topic === DEFAULT_TOPIC && countMessages(messages) >= SUMMARIZE_MIN_LEN) {
           const topicMessages = messages.concat(
             createMessage({
               role: "user",
               content: Locale.Store.Prompt.Topic,
-            }),
+            })
           );
           api.llm.chat({
             messages: topicMessages,
@@ -516,30 +465,21 @@ export const useChatStore = create<ChatStore>()(
             },
             onFinish(message) {
               get().updateCurrentSession(
-                (session) =>
-                  (session.topic =
-                    message.length > 0 ? trimTopic(message) : DEFAULT_TOPIC),
+                (session) => (session.topic = message.length > 0 ? trimTopic(message) : DEFAULT_TOPIC)
               );
             },
           });
         }
 
         const modelConfig = session.mask.modelConfig;
-        const summarizeIndex = Math.max(
-          session.lastSummarizeIndex,
-          session.clearContextIndex ?? 0,
-        );
-        let toBeSummarizedMsgs = messages
-          .filter((msg) => !msg.isError)
-          .slice(summarizeIndex);
+        const summarizeIndex = Math.max(session.lastSummarizeIndex, session.clearContextIndex ?? 0);
+        let toBeSummarizedMsgs = messages.filter((msg) => !msg.isError).slice(summarizeIndex);
 
         const historyMsgLength = countMessages(toBeSummarizedMsgs);
 
         if (historyMsgLength > modelConfig?.max_tokens ?? 4000) {
           const n = toBeSummarizedMsgs.length;
-          toBeSummarizedMsgs = toBeSummarizedMsgs.slice(
-            Math.max(0, n - modelConfig.historyMessageCount),
-          );
+          toBeSummarizedMsgs = toBeSummarizedMsgs.slice(Math.max(0, n - modelConfig.historyMessageCount));
         }
 
         // add memory prompt
@@ -551,13 +491,10 @@ export const useChatStore = create<ChatStore>()(
           "[Chat History] ",
           toBeSummarizedMsgs,
           historyMsgLength,
-          modelConfig.compressMessageLengthThreshold,
+          modelConfig.compressMessageLengthThreshold
         );
 
-        if (
-          historyMsgLength > modelConfig.compressMessageLengthThreshold &&
-          modelConfig.sendMemory
-        ) {
+        if (historyMsgLength > modelConfig.compressMessageLengthThreshold && modelConfig.sendMemory) {
           api.llm.chat({
             messages: toBeSummarizedMsgs.concat({
               role: "system",
@@ -623,6 +560,6 @@ export const useChatStore = create<ChatStore>()(
 
         return newState;
       },
-    },
-  ),
+    }
+  )
 );

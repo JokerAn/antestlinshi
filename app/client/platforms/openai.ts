@@ -3,10 +3,7 @@ import { useAccessStore, useAppConfig, useChatStore } from "@/app/store";
 
 import { ChatOptions, getHeaders, LLMApi, LLMUsage } from "../api";
 import Locale from "../../locales";
-import {
-  EventStreamContentType,
-  fetchEventSource,
-} from "@fortaine/fetch-event-source";
+import { EventStreamContentType, fetchEventSource } from "@fortaine/fetch-event-source";
 import { prettyObject } from "@/app/utils/format";
 
 export class ChatGPTApi implements LLMApi {
@@ -61,17 +58,14 @@ export class ChatGPTApi implements LLMApi {
       };
 
       // make a fetch request
-      const requestTimeoutId = setTimeout(
-        () => controller.abort(),
-        REQUEST_TIMEOUT_MS,
-      );
+      const requestTimeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
       if (shouldStream) {
         let responseText = "";
         let finished = false;
 
         const finish = async (type?: any, header?: any) => {
-          if (type === 3 /* 标准回答完毕 */) {
+          if (type === 33 /* 标准回答完毕 */) {
             //添加邀请码算对话次数的模块-s
             const ic = useAccessStore.getState().accessCode;
             try {
@@ -119,13 +113,8 @@ export class ChatGPTApi implements LLMApi {
                 }
               }
             } catch (error) {
-              console.log(
-                "执行：querycanusenum or subtractioncanusenum没sus",
-                error,
-              );
-              options.onFinish(
-                "执行：querycanusenum or subtractioncanusenum没sus，联系客服吧",
-              );
+              console.log("执行：querycanusenum or subtractioncanusenum没sus", error);
+              options.onFinish("执行：querycanusenum or subtractioncanusenum没sus，联系客服吧");
               return;
             }
             //添加邀请码算对话次数的模块-e
@@ -145,23 +134,14 @@ export class ChatGPTApi implements LLMApi {
             clearTimeout(requestTimeoutId);
             const contentType = res.headers.get("content-type");
             header = res.headers;
-            console.log(
-              "[OpenAI] request response content type: ",
-              contentType,
-            );
+            console.log("[OpenAI] request response content type: ", contentType);
 
             if (contentType?.startsWith("text/plain")) {
               responseText = await res.clone().text();
               return finish(1);
             }
 
-            if (
-              !res.ok ||
-              !res.headers
-                .get("content-type")
-                ?.startsWith(EventStreamContentType) ||
-              res.status !== 200
-            ) {
+            if (!res.ok || !res.headers.get("content-type")?.startsWith(EventStreamContentType) || res.status !== 200) {
               const responseTexts = [responseText];
               let extraInfo = await res.clone().text();
               try {
@@ -221,10 +201,7 @@ export class ChatGPTApi implements LLMApi {
   }
   async usage() {
     const formatDate = (d: Date) =>
-      `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
-        .getDate()
-        .toString()
-        .padStart(2, "0")}`;
+      `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
     const ONE_DAY = 1 * 24 * 60 * 60 * 1000;
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -232,15 +209,10 @@ export class ChatGPTApi implements LLMApi {
     const endDate = formatDate(new Date(Date.now() + ONE_DAY));
 
     const [used, subs] = await Promise.all([
-      fetch(
-        this.path(
-          `${OpenaiPath.UsagePath}?start_date=${startDate}&end_date=${endDate}`,
-        ),
-        {
-          method: "GET",
-          headers: getHeaders(),
-        },
-      ),
+      fetch(this.path(`${OpenaiPath.UsagePath}?start_date=${startDate}&end_date=${endDate}`), {
+        method: "GET",
+        headers: getHeaders(),
+      }),
       fetch(this.path(OpenaiPath.SubsPath), {
         method: "GET",
         headers: getHeaders(),
